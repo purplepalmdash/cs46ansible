@@ -3,5 +3,7 @@
 
 [cloudstackmanagement:vars]
 fqdn=csmgmt.example.com
-hostname=csmgmt
+ansible_hostname=csmgmt
+ansible_fqdn=csmgmt.example.com
 MySQLMaxConnections=700
+MySQLPass=engine123

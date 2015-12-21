@@ -1,6 +1,12 @@
 ### Ansible-CloudStack46
 The playbook for using Ansible to install/configurate CloudStack 4.6 on Ubuntu/CentOS.    
 
+### How to run it?
+
+```
+$ ansible-playbook
+```
+
 ### Steps
 #### No-password login
 Run following command will enable no-password login to the remote machines.   

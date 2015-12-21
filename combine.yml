@@ -13,6 +13,16 @@
                     key="{{ lookup('file', '/root/.ssh/id_rsa.pub') }}" 
                     state=present
 
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+  - name: install libselinux-python
+    yum: name=libselinux-python state=present
+
 ########################### 2. Set the fqdn and hostname ##################################
 ## todo, how to replace fqdn and hostname with the item in inventory? 
 
@@ -43,16 +53,6 @@
       ignore_errors: true
       shell: setenforce 0 
 
-########################### 5. Set the Local Repository ##################################
-- hosts: all
-  sudo: yes
-  gather_facts: no
-  remote_user: root
-
-  tasks:
-
-    - name: Configure CloudStack repo
-      template: src=templates/cloudstack.repo.j2 dest=/etc/yum.repos.d/cloudstack.repo mode=0644
 
 ########################### 6. Set the epel Repository ##################################
 - hosts: all
@@ -62,11 +62,36 @@
 
   tasks:
 
+    - name: Install wget/vim
+      yum: name={{ item }} state=present
+      with_items:
+        - wget
+        - vim
+
+    - name: Install aliyun's epel instead of the epel repo
+      shell: wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-6.repo
+
     - name: Install EPEL repo / python-pip / vim
       yum: name={{ item }} state=present
       with_items:
-        - epel-release
         - python-pip
+
+########################### 6.5. Install nfs server and utils ##################################
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Make the nfs directory
+      shell: mkdir -p /home/public && chmod 777 -R /home/public
+
+- hosts: cloudstackmanagement
+  remote_user: root
+  roles:
+      - role: ansible-role-nfs
+        nfs_exports: { "/home/public *(rw,sync,no_root_squash)" }
 
 ########################### 7. Install mysql for holding the data ##################################
 - hosts: cloudstackmanagement
@@ -92,3 +117,55 @@
 ########################### 9. Start service and remove users ##################################
     - name: Start the MySQL daemon 
       service: name=mysqld state=started enabled=true
+
+# Just run once.          
+#    - name: Remove anonymous MySQL user for {{ ansible_hostname }}
+#      action: mysql_user user="" host="{{ ansible_hostname }}" state="absent"
+#
+#    - name: Remove anonymous MySQL user for {{ ansible_fqdn }}
+#      action: mysql_user user="" host="{{ ansible_fqdn }}" state="absent"
+#
+#    - name: Remove anonymous MySQL user for localhost
+#      action: mysql_user user="" state="absent"
+#
+#    - name: Remove the MySQL test DB
+#      action: mysql_db db=test state=absent
+#
+#    - name: Secure MySQL installation / change root user password
+#      mysql_user: login_user=root
+#                  login_password=''
+#                  name=root
+#                  password={{ MySQLPass | mandatory }} 
+#                  priv=*.*:ALL,GRANT
+#                  host={{ item }}
+#      with_items:
+#        - "{{ ansible_hostname }}"
+#        - "{{ ansible_fqdn }}"
+#        - 127.0.0.1
+#        - ::1
+#        - localhost
+
+
+
+########################### 5. Set the Local Repository ##################################
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Configure CloudStack repo
+      template: src=templates/cloudstack.repo.j2 dest=/etc/yum.repos.d/cloudstack.repo mode=0644
+
+###########################  Install cloudstack management server ##################################
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Install CloudStack management server
+      yum: name=cloudstack-management state=present
+

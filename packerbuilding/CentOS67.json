@@ -3,7 +3,7 @@
   [
     {
       "type": "qemu",
-      "iso_url": "http://192.168.0.79/iso/CentOS-6.7-x86_64-bin-DVD1.iso",
+      "iso_url": "http://192.168.177.13/iso/CentOS-6.7-x86_64-bin-DVD1.iso",
       "iso_checksum": "51f90e8ddd2ea199780065eaf75130ad",
       "iso_checksum_type": "md5",
       "output_directory": "CentOS67",
@@ -28,7 +28,7 @@
       "boot_wait": "5s",
       "boot_command":
       [
-        "<tab> text ks=http://192.168.1.69/CentOS67.ks<enter><wait>"
+        "<tab> text ks=http://192.168.177.13/CentOS67.ks<enter><wait>"
       ],
       "qemuargs": 
       [
