@@ -1,4 +1,6 @@
 ---
+########################### 1. Install ssh key ##################################
+
 - hosts: all
   sudo: yes
   gather_facts: no
@@ -11,17 +13,22 @@
                     key="{{ lookup('file', '/root/.ssh/id_rsa.pub') }}" 
                     state=present
 
+########################### 2. Set the fqdn and hostname ##################################
+## todo, how to replace fqdn and hostname with the item in inventory? 
+
 - hosts: cloudstackmanagement
   remote_user: root
   roles:
-      - { role: ansible-fqdn, fqdn: "management.example.com", hostname: "management" }
+      - { role: ansible-fqdn, fqdn: "csmgmt.example.com", hostname: "csmgmt" }
 
+########################### 3. Set the ntp ##################################
 - hosts: cloudstackmanagement
   remote_user: root
   roles:
       - role: ansible-role-ntp
         ntp_config_server: [2.ubuntu.pool.ntp.org, 1.ubuntu.pool.ntp.org, 3.cn.pool.ntp.org]
 
+########################### 4. Set the SELinux ##################################
 - hosts: all
   sudo: yes
   gather_facts: no
@@ -31,3 +38,57 @@
 
     - name: Set SELinux to disabled
       selinux: policy=targeted state=disabled
+
+    - name: Disable SELinux for now
+      ignore_errors: true
+      shell: setenforce 0 
+
+########################### 5. Set the Local Repository ##################################
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Configure CloudStack repo
+      template: src=templates/cloudstack.repo.j2 dest=/etc/yum.repos.d/cloudstack.repo mode=0644
+
+########################### 6. Set the epel Repository ##################################
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Install EPEL repo / python-pip / vim
+      yum: name={{ item }} state=present
+      with_items:
+        - epel-release
+        - python-pip
+
+########################### 7. Install mysql for holding the data ##################################
+- hosts: cloudstackmanagement
+  remote_user: root
+
+  tasks:
+
+    - name: Install MySQL server
+      yum: name=mysql-server state=present
+  
+    - name: Install MySQL python module
+      yum: name=MySQL-python state=present
+
+########################### 8. Configure the database ##################################
+# Should only run once. 
+    - name: Append CloudStack specific settings to my.cnf
+      lineinfile: dest=/etc/my.cnf
+                  insertbefore="^\[mysqld_safe\]"
+                  line="# CloudStack MySQL settings\\ninnodb_rollback_on_timeout=1\\ninnodb_lock_wait_timeout=600\\nmax_connections={{ MySQLMaxConnections }}\\nlog-bin=mysql-bin\\nbinlog-format = \\'ROW\\'\\n" 
+                  state=present
+
+
+########################### 9. Start service and remove users ##################################
+    - name: Start the MySQL daemon 
+      service: name=mysqld state=started enabled=true

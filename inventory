@@ -1,2 +1,7 @@
 [cloudstackmanagement]
 10.47.58.58
+
+[cloudstackmanagement:vars]
+fqdn=csmgmt.example.com
+hostname=csmgmt
+MySQLMaxConnections=700

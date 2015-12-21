@@ -8,3 +8,6 @@
     - name: Set SELinux to disabled
       selinux: policy=targeted state=disabled
 
+    - name: Disable SELinux for now
+      ignore_errors: true
+      shell: setenforce 0 
