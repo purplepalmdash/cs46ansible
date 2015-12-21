@@ -1,0 +1,33 @@
+---
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+  - name: install ssh key
+    authorized_key: user=root
+                    key="{{ lookup('file', '/root/.ssh/id_rsa.pub') }}" 
+                    state=present
+
+- hosts: cloudstackmanagement
+  remote_user: root
+  roles:
+      - { role: ansible-fqdn, fqdn: "management.example.com", hostname: "management" }
+
+- hosts: cloudstackmanagement
+  remote_user: root
+  roles:
+      - role: ansible-role-ntp
+        ntp_config_server: [2.ubuntu.pool.ntp.org, 1.ubuntu.pool.ntp.org, 3.cn.pool.ntp.org]
+
+- hosts: all
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+
+    - name: Set SELinux to disabled
+      selinux: policy=targeted state=disabled

@@ -1,0 +1,5 @@
+---
+- hosts: cloudstackmanagement
+  remote_user: root
+  roles:
+      - { role: ansible-fqdn, fqdn: "management.example.com", hostname: "management" }
