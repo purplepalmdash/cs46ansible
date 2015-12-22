@@ -16,6 +16,9 @@
   - name: Configure CloudStack Agent repo
     template: src=templates/cloudstack46.repo.j2 dest=/etc/yum.repos.d/cloudstack46.repo mode=0644
 
+  #- name: Configure root cnf file for MySQL
+  #  template: src=templates/root/.my.cnf dest=/root/.my.cnf
+
   #######################################################
   #  Remove CentOS Repo
   #
