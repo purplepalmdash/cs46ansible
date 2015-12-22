@@ -13,15 +13,21 @@
                     key="{{ lookup('file', '/root/.ssh/id_rsa.pub') }}" 
                     state=present
 
-- hosts: all
-  sudo: yes
-  gather_facts: no
-  remote_user: root
+  - name: Configure CloudStack Agent repo
+    template: src=templates/cloudstack46.repo.j2 dest=/etc/yum.repos.d/cloudstack46.repo mode=0644
 
-  tasks:
+  #######################################################
+  #  Remove CentOS Repo
+  #
+  - name: Remove Origin CentOS Repo
+    shell: mv -f /etc/yum.repos.d/CentOS-* /root/ 2>/dev/null
+    ignore_errors: yes
 
-  - name: install libselinux-python
-    yum: name=libselinux-python state=present
+  #######################################################
+  #  Re-make Repo Cache
+  #
+  - name: Re-generate the repository cache
+    shell: yum clean all && yum makecache
 
 ########################### 2. Set the fqdn and hostname ##################################
 ## todo, how to replace fqdn and hostname with the item in inventory? 
@@ -62,18 +68,12 @@
 
   tasks:
 
-    - name: Install wget/vim
+    - name: Install wget/vim/nethogs/python-pip
       yum: name={{ item }} state=present
       with_items:
         - wget
         - vim
-
-    - name: Install aliyun's epel instead of the epel repo
-      shell: wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-6.repo
-
-    - name: Install EPEL repo / python-pip / vim
-      yum: name={{ item }} state=present
-      with_items:
+        - nethogs
         - python-pip
 
 ########################### 6.5. Install nfs server and utils ##################################
@@ -119,47 +119,42 @@
       service: name=mysqld state=started enabled=true
 
 # Just run once.          
-#    - name: Remove anonymous MySQL user for {{ ansible_hostname }}
-#      action: mysql_user user="" host="{{ ansible_hostname }}" state="absent"
-#
-#    - name: Remove anonymous MySQL user for {{ ansible_fqdn }}
-#      action: mysql_user user="" host="{{ ansible_fqdn }}" state="absent"
-#
-#    - name: Remove anonymous MySQL user for localhost
-#      action: mysql_user user="" state="absent"
-#
-#    - name: Remove the MySQL test DB
-#      action: mysql_db db=test state=absent
-#
-#    - name: Secure MySQL installation / change root user password
-#      mysql_user: login_user=root
-#                  login_password=''
-#                  name=root
-#                  password={{ MySQLPass | mandatory }} 
-#                  priv=*.*:ALL,GRANT
-#                  host={{ item }}
-#      with_items:
-#        - "{{ ansible_hostname }}"
-#        - "{{ ansible_fqdn }}"
-#        - 127.0.0.1
-#        - ::1
-#        - localhost
+    - name: Remove anonymous MySQL user for {{ ansible_hostname }}
+      action: mysql_user user="" host="{{ ansible_hostname }}" state="absent"
+      run_once: true
 
+    - name: Remove anonymous MySQL user for {{ ansible_fqdn }}
+      action: mysql_user user="" host="{{ ansible_fqdn }}" state="absent"
+      run_once: true
 
+    - name: Remove anonymous MySQL user for localhost
+      action: mysql_user user="" state="absent"
+      run_once: true
 
-########################### 5. Set the Local Repository ##################################
-- hosts: all
-  sudo: yes
-  gather_facts: no
-  remote_user: root
+    - name: Remove the MySQL test DB
+      action: mysql_db db=test state=absent
+      run_once: true
 
-  tasks:
+    - name: Secure MySQL installation / change root user password
+      mysql_user: login_user=root
+                  login_password=''
+                  name=root
+                  password={{ MySQLPass | mandatory }} 
+                  priv=*.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - "{{ ansible_hostname }}"
+        - "{{ ansible_fqdn }}"
+        - 127.0.0.1
+        - ::1
+        - localhost
+      run_once: true
 
-    - name: Configure CloudStack repo
-      template: src=templates/cloudstack.repo.j2 dest=/etc/yum.repos.d/cloudstack.repo mode=0644
+    - name: Open MySQL tcp 3306
+      shell: iptables -A INPUT -p tcp -m tcp --dport 3306 -j ACCEPT
 
 ###########################  Install cloudstack management server ##################################
-- hosts: all
+- hosts: cloudstackmanagement
   sudo: yes
   gather_facts: no
   remote_user: root
@@ -168,4 +163,68 @@
 
     - name: Install CloudStack management server
       yum: name=cloudstack-management state=present
+
+    - name: Configure CloudStack database connectvity on additional management server
+      shell: cloudstack-setup-databases {{ CloudDBUser }}:{{ CloudDBPass | mandatory }}@localhost --deploy-as={{ MySQLRoot }}:{{ MySQLPass | mandatory }} -i `ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`>> /root/cs_dbinstall.out 2>&1
+
+
+- hosts: cloudstackmanagement
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+    - name: Mount NFS secondary storage
+      mount: name=/mnt src={{ ManagementIP }}:/home/public fstype=nfs state=mounted
+
+    - name: Download CloudStack 4.6 system VM template(kvm)
+      shell: /usr/share/cloudstack-common/scripts/storage/secondary/cloud-install-sys-tmplt -m /mnt -u {{ SysTemplateURLurl46 }} -h kvm -F
+
+    - name: Umount NFS secondary storage
+      mount: name=/mnt src={{ ManagementIP }}:/home/public fstype=nfs state=absent
+
+    - name: Open Cloudstack tcp 8080
+      shell: iptables -A INPUT -p tcp -m tcp --dport 8080 -j ACCEPT
+              
+    - name: Start CloudStack Management Service
+      shell: cloudstack-setup-management
+
+    # - name: Save iptables
+    #   service: name=iptables state=restarted
+
+    # - name: save iptables
+    #   shell: /sbin/service iptables save
+
+    - name: Copy pip cache To Destination
+      copy: src=templates/pipcache2.tar.gz dest=/root/pipcache2.tar.gz owner=root group=root mode=0644
+
+    - name: Tar Remotely
+      shell: tar xzvf /root/pipcache2.tar.gz
+
+    - name: Install CloudMonkey
+      shell: pip install --no-index --find-links /root/pipcache2 argparse && pip install --no-index --find-links /root/pipcache2 argcomplete &&  pip install --no-index --find-links /root/pipcache2 requests && pip install --no-index --find-links /root/pipcache2 argcomplete && pip install --no-index --find-links /root/pipcache2 prettytable && pip install --no-index --find-links /root/pipcache2 Pygments && pip install --no-index --find-links /root/pipcache2 cloudmonkey
+
+- hosts: cloudstackagent
+  sudo: yes
+  gather_facts: no
+  remote_user: root
+
+  tasks:
+    - name: Install Cloudstack-agent
+      yum: name=cloud-agent state=present
+
+    - name: Configure the qemu.conf
+      shell: sed -i 's/#vnc_listen = "0.0.0.0"/vnc_listen = "0.0.0.0"/g' /etc/libvirt/qemu.conf
+      run_once: true
+
+    - name: Configure the libvirtd.conf
+      shell: sed -i 's/#listen_tls = 0/listen_tls = 0/g' /etc/libvirt/libvirtd.conf && sed -i 's/#listen_tcp = 1/listen_tcp = 1/g' /etc/libvirt/libvirtd.conf && sed -i 's/#tcp_port = "16509"/tcp_port = "16509"/g' /etc/libvirt/libvirtd.conf && sed -i 's/#auth_tcp = "sasl"/auth_tcp = "none"/g' /etc/libvirt/libvirtd.conf && sed -i 's/#mdns_adv = 1/mdns_adv = 0/g' /etc/libvirt/libvirtd.conf
+      run_once: true
+
+    - name: Configure the sysconfig libvirtd.conf
+      shell: sed -i 's/#LIBVIRTD_ARGS="--listen"/LIBVIRTD_ARGS="--listen"/g' /etc/sysconfig/libvirtd 
+      run_once: true
+
+    - name: Restart the libvirtd
+      service: name=libvirtd state=restarted
 
