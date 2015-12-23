@@ -1,0 +1,12 @@
+- hosts: cloudstackagent
+  roles:
+    - role: network
+      network_bridge_interfaces:
+        - device: cloudbr0
+          type: bridge
+          address: 10.47.58.229
+          netmask: 255.255.255.0
+          gateway: 10.47.58.1
+          bootproto: static
+          stp: "on"
+          ports: [eth0]

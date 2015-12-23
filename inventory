@@ -2,7 +2,7 @@
 10.47.58.58
 
 [cloudstackagent]
-10.47.58.58
+10.47.58.229
 
 [cloudstackmanagement:vars]
 fqdn=csmgmt.example.com
