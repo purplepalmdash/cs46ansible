@@ -39,7 +39,7 @@
 #########################################################################################
 # 
 - name: apply CloudStack configuration to all nodes
-  hosts: all
+  hosts: cloudstackmanagement
   sudo: yes
   
   #########################################################################################
@@ -67,16 +67,16 @@
       NetworkType: Advanced
       Phys1Name: FirstPhysicalNetwork
       Phys1Isolation: VLAN
-      Phys1VLANs: 22
+      Phys1VLANs: 220-250
       Phys1TrafficType1: Management
-      Phys1TrafficType1Label: cloud-private
+      Phys1TrafficType1Label: cloudbr0
       Phys1TrafficType2: Guest
-      Phys1TrafficType2Label: cloud-private
+      Phys1TrafficType2Label: cloudbr0
       Phys2Name: SecondPhysicalNetwork
       Phys2Isolation: VLAN
-      Phys2VLANs: 33
+      Phys2VLANs: 260-300
       Phys2TrafficType1: Public
-      Phys2TrafficType1Label: cloud-public
+      Phys2TrafficType1Label: cloudbr0
       PodName: FirstPod
       PodStartIP: 10.47.58.60
       PodEndIP: 10.47.58.80
@@ -96,6 +96,10 @@
   # Tasks
   #
   tasks:
+    #- name: Validate input - KVMServer host password
+    #  fail: msg="Missing or incorrect KVM Host password."
+    - name: Upgrade cloudmonkey
+      shell: easy_install --upgrade pip && pip install --upgrade setuptools && pip install --upgrade distribute && wget https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py -O - | python 
 
     #- name: Validate input - KVMServer host password
     #  fail: msg="Missing or incorrect KVM Host password."
@@ -271,4 +275,26 @@
       shell: cloudmonkey update zone allocationstate=Enabled id={{ ZoneID.stdout }}
       tags:
         - cmconfig
+
+    #######################################################
+    # Change secondary storage download url
+    - name: Change secondary storage download url
+      shell: cloudmonkey update configuration name=secstorage.allowed.internal.sites value=192.168.0.0/16
+
+    #######################################################
+    # Restart the cloudstack-management servie
+    - name: Restart cloudstack-management service
+      shell: service cloudstack-management restart
+
+    - pause: minutes=2
+
+    #######################################################
+    # Create a new service offering
+    - name: Create a new service offering
+      shell: cloudmonkey create serviceoffering cpunumber=1 cpuspeed=500 displaytext=monkeyking memory=256 name=monkeyking
+
+    #######################################################
+    # Register a new template of tinycore.qcow2
+    - name: Register the new template of tinycore
+      shell: cloudmonkey register template hypervisor=kvm zoneid={{ ZoneID.stdout }} format=qcow2 name=tinycore displaytext=tinycoretemplate ispublic=true ostypeid=11 url=http://192.168.0.79/tiny.qcow2
 
