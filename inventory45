@@ -1,0 +1,17 @@
+[cloudstackmanagement]
+10.47.58.58
+
+[cloudstackagent]
+10.47.58.58
+
+[cloudstackmanagement:vars]
+fqdn=csmgmt.example.com
+ansible_hostname=csmgmt
+ansible_fqdn=csmgmt.example.com
+MySQLRoot=root
+MySQLMaxConnections=700
+MySQLPass=engine123
+CloudDBUser=cloud
+CloudDBPass=engine123
+ManagementIP=10.47.58.58
+SysTemplateURLurl45=http://192.168.1.69/systemvm64template-4.5-kvm.qcow2.bz2
